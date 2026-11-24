@@ -21,6 +21,8 @@ screening tool, not a substitute for a complete code-based structural design.
   stiffness along the span.
 - Supports: simply supported or cantilever.
 - Continuous beams and code-compliant member design are out of scope.
+- Save and open beam designs, including support type, span, section/member inputs,
+  deflection limit, and applied loads.
 
 ## Inputs
 - Support condition and span (ft).

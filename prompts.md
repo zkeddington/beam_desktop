@@ -24,3 +24,8 @@
 - Asked: Prevent shear/moment label overlap, correct the cross-section drawing, and show distributed loads on the beam.
 - Changed: Allocated separate vertical rows for response diagrams, drew entered distributed and point loads above the beam, and rendered steel W-shapes or rectangular lumber with scaled dimensions.
 - Worked: Yes. Python compilation and the 20 ft benchmark check succeeded.
+
+## 2026-11-24
+- Asked: Add File > Save/Open for beam support, span, section, deflection limit, and loads; remove saving designs from spec out of scope.
+- Changed: Added Save/Open commands backed by JSON design files and moved design saving into the specification scope.
+- Worked: Yes. Python compilation and a JSON data round-trip check succeeded.

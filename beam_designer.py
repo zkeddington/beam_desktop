@@ -1,5 +1,7 @@
 """Tkinter beam analysis screening tool. Imperial units throughout."""
+import json
 import math
+from tkinter import filedialog
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -42,6 +44,7 @@ def analyze(span_ft, support, points, distributed, E_ksi, Ix_in4, S_in3):
 class App(tk.Tk):
     def __init__(self):
         super().__init__(); self.title("Beam Designer · Preliminary Screening"); self.geometry("1280x900"); self.configure(bg="#f5f2e7")
+        menu=tk.Menu(self); file_menu=tk.Menu(menu,tearoff=False); file_menu.add_command(label="Save",command=self.save_design); file_menu.add_command(label="Open",command=self.open_design); menu.add_cascade(label="File",menu=file_menu); self.config(menu=menu)
         style=ttk.Style(self); style.theme_use("clam"); style.configure("TFrame",background="#f5f2e7"); style.configure("TLabel",background="#f5f2e7",foreground=INK); style.configure("TLabelframe",background=PAPER); style.configure("TLabelframe.Label",background=PAPER,foreground=PINE,font=("Segoe UI",10,"bold"))
         head=tk.Label(self,text="❄  BEAM DESIGNER     |     PRELIMINARY SCREENING",bg=PINE,fg="#f0d48a",font=("Segoe UI",16,"bold"),pady=14); head.pack(fill="x")
         outer=ttk.Frame(self,padding=12); outer.pack(fill="both",expand=True)
@@ -68,6 +71,24 @@ class App(tk.Tk):
     def example(self):
         for k,v in dict(span="20",support="Simply supported",material="Steel W-shape",section="W12x26",d="12.22",bf="6.49",tw="0.23",tf="0.38",weight="26",E="29000",Ix="204",Sx="33.4",Fy="50",allow="",source="Example values—verify",points="",udl="1@0-20",limit="360").items(): self.vars[k].set(v)
         self.run()
+    def save_design(self):
+        path=filedialog.asksaveasfilename(defaultextension=".beam.json",filetypes=[("Beam design","*.beam.json"),("JSON files","*.json")])
+        if not path: return
+        keys=("span","support","material","section","d","bf","tw","tf","weight","E","Ix","Sx","Fy","allow","source","points","udl","limit")
+        data={k:self.vars[k].get() for k in keys}; data["selfwt"]=bool(self.vars["selfwt"].get())
+        try:
+            with open(path,"w",encoding="utf-8") as f: json.dump(data,f,indent=2)
+        except OSError as exc: messagebox.showerror("Save design",str(exc),parent=self)
+    def open_design(self):
+        path=filedialog.askopenfilename(filetypes=[("Beam design","*.beam.json *.json"),("All files","*.*")])
+        if not path: return
+        try:
+            with open(path,encoding="utf-8") as f: data=json.load(f)
+            for k,v in data.items():
+                if k in self.vars and k!="selfwt": self.vars[k].set(str(v))
+            if "selfwt" in data: self.vars["selfwt"].set(bool(data["selfwt"]))
+            self.run()
+        except (OSError,ValueError,TypeError) as exc: messagebox.showerror("Open design",str(exc),parent=self)
     def run(self):
         try:
             span=float(self.vars['span'].get()); E=float(self.vars['E'].get()); I=float(self.vars['Ix'].get()); S=float(self.vars['Sx'].get());
