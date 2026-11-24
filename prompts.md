@@ -39,3 +39,8 @@
 - Asked: Add a calculation sheet button that saves inputs, diagrams, and checks as a hand-in-ready PDF.
 - Changed: Added a PDF export button, a printable calculation summary with inputs and check results, and sampled beam response values; documented PDF output in the specification.
 - Worked: Python compilation succeeded. Export is a one-page printable PDF using built-in fonts.
+
+## 2026-11-24
+- Asked: Write a short README explaining the app, packages to install, and startup command.
+- Changed: Added `README.md` with the app summary, dependency installation, and launch commands.
+- Worked: Yes. README content matches the current requirements and app entry point.
