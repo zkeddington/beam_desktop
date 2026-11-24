@@ -80,7 +80,7 @@ class App(tk.Tk):
                 q,ends=item.split('@'); a,b=ends.split('-'); dls.append((float(q),float(a),float(b)))
             if self.vars['selfwt'].get(): dls.append((float(self.vars['weight'].get())/1000,0,span))
             if any(a<0 or a>span or b<0 or b>span or b<=a for q,a,b in dls) or any(a<0 or a>span for p,a in pts): raise ValueError("Load locations must lie within the span.")
-            out=analyze(span,self.vars['support'].get(),pts,dls,E,I,S); stress=abs(out['maxM'][2]/S)
+            out=analyze(span,self.vars['support'].get(),pts,dls,E,I,S); out['points']=pts; out['distributed']=dls; stress=abs(out['maxM'][2]/S)
             allow=self.vars['allow'].get().strip(); lim=span*12/float(self.vars['limit'].get()); dy=abs(out['maxY'][3])
             self.result.config(text=f"Reactions: {out['left']:.3f} kip left; {out['right']:.3f} kip right   |   Max |M| {abs(out['maxM'][2])/12:.3f} kip-ft @ {out['maxM'][0]:.2f} ft   |   Max |fb| {stress:.3f} ksi   |   Max |δ| {dy:.3f} in\nBending: {'NOT CHECKED' if not allow else ('PASS' if stress<=float(allow) else 'FAIL')}    Deflection: {'PASS' if dy<=lim else 'FAIL'} (L/{self.vars['limit'].get()})\nEducational screening only. No shear-strength, buckling, bracing, bearing, connection, or code load-combination checks. Source: {self.vars['source'].get()}")
             self.draw(out,span)
@@ -95,18 +95,33 @@ class App(tk.Tk):
         else: c.create_rectangle(left-8,y-20,left,y+22,fill=PINE)
         for i in range(11):
             x=left+(right-left)*i/10;c.create_line(x,y+30,x,y+34,fill=INK);c.create_text(x,y+44,text=f"{span*i/10:g}",font=("Segoe UI",8))
-        c.create_text((left+right)/2,y+61,text="Beam position (ft)  ·  red = applied load",fill=PINE)
+        for q,a,b in o.get('distributed',[]):
+            xa=left+scale*a; xb=left+scale*b; top=y-34
+            c.create_line(xa,top,xb,top,fill=RED,width=2)
+            for xx in [xa+(xb-xa)*i/12 for i in range(13)]: c.create_line(xx,top+2,xx,y-5,fill=RED,arrow=tk.LAST)
+            c.create_text((xa+xb)/2,top-9,text=f"{q*12:g} kip/ft",fill=RED,font=("Segoe UI",9))
+        for p,a in o.get('points',[]):
+            xx=left+scale*a;c.create_line(xx,y-37,xx,y-5,fill=RED,width=2,arrow=tk.LAST)
+            c.create_text(xx,y-45,text=f"{p:g} kip",fill=RED)
+        c.create_text((left+right)/2,y+61,text="Beam position (ft)",fill=PINE)
         for name,idx,color,unit in [("Shear (kip)",1,PINE,1),("Moment (kip-ft)",2,RED,1/12),("Deflection (in)",3,GOLD,1)]:
-            vals=[s[idx]*unit for s in o['samples']]; peak=max(max(abs(v) for v in vals),.01); yy=c.winfo_height()*.27+len(c.find_all())*0
-            y0=yy; c.create_text(12,y0,text=name,anchor="w",fill=color,font=("Segoe UI",10,"bold")); c.create_line(left,y0+45,right,y0+45,fill="#abb5a9",dash=(3,3))
+            vals=[s[idx]*unit for s in o['samples']]; peak=max(max(abs(v) for v in vals),.01)
+            y0=145+[0,130,260][["Shear (kip)","Moment (kip-ft)","Deflection (in)"].index(name)]; baseline=y0+35
+            c.create_text(left,y0,text=name,anchor="w",fill=color,font=("Segoe UI",10,"bold")); c.create_line(left,baseline,right,baseline,fill="#abb5a9",dash=(3,3))
             coords=[]
-            for x,v in zip((left+(right-left)*s[0]/span for s in o['samples']),vals): coords.extend([x,y0+45-v/peak*28])
+            for x,v in zip((left+(right-left)*s[0]/span for s in o['samples']),vals): coords.extend([x,baseline-v/peak*38])
             c.create_line(*coords,fill=color,width=2)
             # fixed diagram bands
             if name.startswith("Shear"): pass
-        # simple section sketch with uniform aspect ratio
-        x0=w-130; y0=c.winfo_height()-125; depth=max(float(self.vars['d'].get()),.1); width=max(float(self.vars['bf'].get()),.1); fac=70/max(depth,width)
-        c.create_text(x0,y0-15,text="Section (scaled)",fill=PINE); c.create_rectangle(x0-width*fac/2,y0-depth*fac/2,x0+width*fac/2,y0+depth*fac/2,outline=RED,width=2)
+        # Cross-section uses one scale for every entered dimension.
+        x0=w-130; cy=c.winfo_height()-115; depth=max(float(self.vars['d'].get()),.1); width=max(float(self.vars['bf'].get()),.1); fac=90/max(depth,width)
+        xl=x0-width*fac/2; xr=x0+width*fac/2; yt=cy-depth*fac/2; yb=cy+depth*fac/2
+        c.create_text(x0,yt-17,text="Section (scaled)",fill=PINE)
+        if self.vars['material'].get()=="Steel W-shape":
+            tw=float(self.vars['tw'].get())*fac; tf=float(self.vars['tf'].get())*fac
+            c.create_polygon(xl,yt,xr,yt,xr,yt+tf,x0+tw/2,yt+tf,x0+tw/2,yb-tf,xr,yb-tf,xr,yb,xl,yb,xl,yb-tf,x0-tw/2,yb-tf,x0-tw/2,yt+tf,xl,yt+tf,fill="#dce8dc",outline=RED,width=2)
+        else: c.create_rectangle(xl,yt,xr,yb,fill="#dce8dc",outline=RED,width=2)
+        c.create_text(xr+5,cy,text=f"d={depth:g} in",anchor="w",font=("Segoe UI",8))
 
 
 if __name__ == "__main__":

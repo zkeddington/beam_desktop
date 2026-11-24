@@ -19,3 +19,8 @@
 - Asked: Fix the app because `py beam_designer.py` exits without opening a window.
 - Changed: Added the `__main__` entry point to instantiate the Tkinter app and enter its event loop.
 - Worked: The module compiles and the script now enters the Tkinter main loop when launched; GUI display could not be interactively confirmed in this session.
+
+## 2026-11-24
+- Asked: Prevent shear/moment label overlap, correct the cross-section drawing, and show distributed loads on the beam.
+- Changed: Allocated separate vertical rows for response diagrams, drew entered distributed and point loads above the beam, and rendered steel W-shapes or rectangular lumber with scaled dimensions.
+- Worked: Yes. Python compilation and the 20 ft benchmark check succeeded.
