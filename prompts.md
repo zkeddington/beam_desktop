@@ -14,3 +14,8 @@
 - Asked: Read `spec.md` and build its Tkinter desktop app, using `index.html` as a behavior reference.
 - Changed: Added `beam_designer.py` with separate beam analysis, example-loaded Tkinter controls, load inputs, screening results, and canvas beam/response/section drawings.
 - Worked: Yes. Python import succeeded and the specified 20 ft benchmark produced 50.0 kip-ft, 0.609 in deflection, and 17.964 ksi bending stress.
+
+## 2026-11-24
+- Asked: Fix the app because `py beam_designer.py` exits without opening a window.
+- Changed: Added the `__main__` entry point to instantiate the Tkinter app and enter its event loop.
+- Worked: The module compiles and the script now enters the Tkinter main loop when launched; GUI display could not be interactively confirmed in this session.

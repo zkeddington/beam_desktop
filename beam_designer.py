@@ -107,3 +107,7 @@ class App(tk.Tk):
         # simple section sketch with uniform aspect ratio
         x0=w-130; y0=c.winfo_height()-125; depth=max(float(self.vars['d'].get()),.1); width=max(float(self.vars['bf'].get()),.1); fac=70/max(depth,width)
         c.create_text(x0,y0-15,text="Section (scaled)",fill=PINE); c.create_rectangle(x0-width*fac/2,y0-depth*fac/2,x0+width*fac/2,y0+depth*fac/2,outline=RED,width=2)
+
+
+if __name__ == "__main__":
+    App().mainloop()
