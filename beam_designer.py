@@ -1,0 +1,109 @@
+"""Tkinter beam analysis screening tool. Imperial units throughout."""
+import math
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+PINE, RED, GOLD, PAPER, INK = "#173d2b", "#a23d48", "#a47719", "#fffdf6", "#1d3024"
+
+
+def analyze(span_ft, support, points, distributed, E_ksi, Ix_in4, S_in3):
+    """Loads are downward-positive kip, kip/ft and feet; returns sampled responses."""
+    L = span_ft * 12
+    pts = [(p, a * 12) for p, a in points]
+    dls = [(q / 12, a * 12, b * 12) for q, a, b in distributed]
+    total = sum(p for p, _ in pts) + sum(q * (b-a) for q, a, b in dls)
+    load_moment = sum(p*a for p, a in pts) + sum(q*(b*b-a*a)/2 for q,a,b in dls)
+    rr = load_moment/L if support == "Simply supported" else 0
+    rl = total-rr if support == "Simply supported" else total
+    c = 0 if support == "Simply supported" else -load_moment
+    def moment(x):
+        val = c + rl*x
+        for p,a in pts: val -= p*max(x-a, 0)
+        for q,a,b in dls: val -= q*(max(x-a,0)**2-max(x-b,0)**2)/2
+        return val
+    def integ(x):
+        val = c*x*x/2 + rl*x**3/6
+        for p,a in pts: val -= p*max(x-a,0)**3/6
+        for q,a,b in dls: val -= q*(max(x-a,0)**4-max(x-b,0)**4)/24
+        return val
+    EI=E_ksi*Ix_in4
+    slope=integ(L)/(EI*L) if support == "Simply supported" else 0
+    samples=[]
+    for i in range(501):
+        x=L*i/500
+        v=rl-sum(p for p,a in pts if x>=a)-sum(q*max(0,min(x,b)-a) for q,a,b in dls)
+        m=moment(x); y=-integ(x)/EI+slope*x
+        samples.append((x/12,v,m,y))
+    return dict(left=rl,right=rr,fixed_moment=load_moment/12,total=total,samples=samples,
+                maxV=max(samples,key=lambda z:abs(z[1])),maxM=max(samples,key=lambda z:abs(z[2])),
+                maxY=max(samples,key=lambda z:abs(z[3])))
+
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__(); self.title("Beam Designer · Preliminary Screening"); self.geometry("1280x900"); self.configure(bg="#f5f2e7")
+        style=ttk.Style(self); style.theme_use("clam"); style.configure("TFrame",background="#f5f2e7"); style.configure("TLabel",background="#f5f2e7",foreground=INK); style.configure("TLabelframe",background=PAPER); style.configure("TLabelframe.Label",background=PAPER,foreground=PINE,font=("Segoe UI",10,"bold"))
+        head=tk.Label(self,text="❄  BEAM DESIGNER     |     PRELIMINARY SCREENING",bg=PINE,fg="#f0d48a",font=("Segoe UI",16,"bold"),pady=14); head.pack(fill="x")
+        outer=ttk.Frame(self,padding=12); outer.pack(fill="both",expand=True)
+        self.left=ttk.Frame(outer); self.left.pack(side="left",fill="y",padx=(0,12))
+        self.right=ttk.Frame(outer); self.right.pack(side="left",fill="both",expand=True)
+        self.vars={}
+        self.field("Span (ft)","span","20"); self.combo("Support","support",["Simply supported","Cantilever"])
+        self.combo("Material","material",["Steel W-shape","Lumber"])
+        self.combo("W-shape","section",["W12x26","W8x10","W10x22","W14x30","W16x36","W18x40","W21x44","W24x55"])
+        for label,key,value in [("Depth d (in)","d","12.22"),("Flange width bf (in)","bf","6.49"),("Web thickness tw (in)","tw","0.23"),("Flange thickness tf (in)","tf","0.38"),("Weight (lb/ft)","weight","26"),("E (ksi)","E","29000"),("Ix (in⁴)","Ix","204"),("Sx (in³)","Sx","33.4"),("Fy (ksi)","Fy","50"),("Allowable Fb (ksi, optional)","allow",""),("Property source","source","Example values—verify")]: self.field(label,key,value)
+        self.field("Point loads kip downward: value@ft (comma separated)","points","")
+        self.field("Uniform loads kip/ft: value@start-end ft (comma separated)","udl","1@0-20")
+        self.field("Deflection limit L/n","limit","360")
+        self.vars["selfwt"]=tk.BooleanVar(value=False); ttk.Checkbutton(self.left,text="Include member self-weight",variable=self.vars["selfwt"]).pack(anchor="w",pady=3)
+        ttk.Button(self.left,text="Analyze beam",command=self.run).pack(fill="x",pady=5); ttk.Button(self.left,text="Load example",command=self.example).pack(fill="x")
+        self.result=ttk.Label(self.right,text="",justify="left",wraplength=750); self.result.pack(fill="x",pady=6)
+        self.canvas=tk.Canvas(self.right,bg=PAPER,highlightthickness=0); self.canvas.pack(fill="both",expand=True); self.canvas.bind("<Configure>",lambda e:self.run())
+        self.run()
+
+    def field(self,label,key,value):
+        row=ttk.Frame(self.left); row.pack(fill="x",pady=2); ttk.Label(row,text=label,width=37).pack(side="left"); v=tk.StringVar(value=value); self.vars[key]=v; ttk.Entry(row,textvariable=v,width=18).pack(side="right")
+    def combo(self,label,key,values):
+        row=ttk.Frame(self.left); row.pack(fill="x",pady=3); ttk.Label(row,text=label,width=37).pack(side="left"); v=tk.StringVar(value=values[0]); self.vars[key]=v; ttk.Combobox(row,textvariable=v,values=values,state="readonly",width=16).pack(side="right")
+    def example(self):
+        for k,v in dict(span="20",support="Simply supported",material="Steel W-shape",section="W12x26",d="12.22",bf="6.49",tw="0.23",tf="0.38",weight="26",E="29000",Ix="204",Sx="33.4",Fy="50",allow="",source="Example values—verify",points="",udl="1@0-20",limit="360").items(): self.vars[k].set(v)
+        self.run()
+    def run(self):
+        try:
+            span=float(self.vars['span'].get()); E=float(self.vars['E'].get()); I=float(self.vars['Ix'].get()); S=float(self.vars['Sx'].get());
+            if min(span,E,I,S)<=0: raise ValueError("Span and member properties must be positive.")
+            pts=[]
+            for item in filter(None,self.vars['points'].get().split(',')):
+                p,a= item.split('@'); pts.append((float(p),float(a)))
+            dls=[]
+            for item in filter(None,self.vars['udl'].get().split(',')):
+                q,ends=item.split('@'); a,b=ends.split('-'); dls.append((float(q),float(a),float(b)))
+            if self.vars['selfwt'].get(): dls.append((float(self.vars['weight'].get())/1000,0,span))
+            if any(a<0 or a>span or b<0 or b>span or b<=a for q,a,b in dls) or any(a<0 or a>span for p,a in pts): raise ValueError("Load locations must lie within the span.")
+            out=analyze(span,self.vars['support'].get(),pts,dls,E,I,S); stress=abs(out['maxM'][2]/S)
+            allow=self.vars['allow'].get().strip(); lim=span*12/float(self.vars['limit'].get()); dy=abs(out['maxY'][3])
+            self.result.config(text=f"Reactions: {out['left']:.3f} kip left; {out['right']:.3f} kip right   |   Max |M| {abs(out['maxM'][2])/12:.3f} kip-ft @ {out['maxM'][0]:.2f} ft   |   Max |fb| {stress:.3f} ksi   |   Max |δ| {dy:.3f} in\nBending: {'NOT CHECKED' if not allow else ('PASS' if stress<=float(allow) else 'FAIL')}    Deflection: {'PASS' if dy<=lim else 'FAIL'} (L/{self.vars['limit'].get()})\nEducational screening only. No shear-strength, buckling, bracing, bearing, connection, or code load-combination checks. Source: {self.vars['source'].get()}")
+            self.draw(out,span)
+        except Exception as e:
+            self.result.config(text=f"Input error: {e}")
+
+    def draw(self,o,span):
+        c=self.canvas; c.delete('all'); w=max(c.winfo_width(),500); left=75; right=w-25; scale=(right-left)/span; y=45
+        c.create_text(12,10,text="❄",fill=RED); c.create_line(left,y,right,y,width=5,fill=PINE)
+        if self.vars['support'].get()=="Simply supported":
+            for x in (left,right): c.create_polygon(x,y+2,x-10,y+22,x+10,y+22,fill=GOLD)
+        else: c.create_rectangle(left-8,y-20,left,y+22,fill=PINE)
+        for i in range(11):
+            x=left+(right-left)*i/10;c.create_line(x,y+30,x,y+34,fill=INK);c.create_text(x,y+44,text=f"{span*i/10:g}",font=("Segoe UI",8))
+        c.create_text((left+right)/2,y+61,text="Beam position (ft)  ·  red = applied load",fill=PINE)
+        for name,idx,color,unit in [("Shear (kip)",1,PINE,1),("Moment (kip-ft)",2,RED,1/12),("Deflection (in)",3,GOLD,1)]:
+            vals=[s[idx]*unit for s in o['samples']]; peak=max(max(abs(v) for v in vals),.01); yy=c.winfo_height()*.27+len(c.find_all())*0
+            y0=yy; c.create_text(12,y0,text=name,anchor="w",fill=color,font=("Segoe UI",10,"bold")); c.create_line(left,y0+45,right,y0+45,fill="#abb5a9",dash=(3,3))
+            coords=[]
+            for x,v in zip((left+(right-left)*s[0]/span for s in o['samples']),vals): coords.extend([x,y0+45-v/peak*28])
+            c.create_line(*coords,fill=color,width=2)
+            # fixed diagram bands
+            if name.startswith("Shear"): pass
+        # simple section sketch with uniform aspect ratio
+        x0=w-130; y0=c.winfo_height()-125; depth=max(float(self.vars['d'].get()),.1); width=max(float(self.vars['bf'].get()),.1); fac=70/max(depth,width)
+        c.create_text(x0,y0-15,text="Section (scaled)",fill=PINE); c.create_rectangle(x0-width*fac/2,y0-depth*fac/2,x0+width*fac/2,y0+depth*fac/2,outline=RED,width=2)
