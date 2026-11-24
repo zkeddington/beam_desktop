@@ -23,6 +23,8 @@ screening tool, not a substitute for a complete code-based structural design.
 - Continuous beams and code-compliant member design are out of scope.
 - Save and open beam designs, including support type, span, section/member inputs,
   deflection limit, and applied loads.
+- Export sampled position, shear, moment, and deflection results to a CSV file
+  suitable for opening in spreadsheet software.
 
 ## Inputs
 - Support condition and span (ft).

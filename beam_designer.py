@@ -1,5 +1,6 @@
 """Tkinter beam analysis screening tool. Imperial units throughout."""
 import json
+import csv
 import math
 from tkinter import filedialog
 import tkinter as tk
@@ -61,6 +62,7 @@ class App(tk.Tk):
         self.vars["selfwt"]=tk.BooleanVar(value=False); ttk.Checkbutton(self.left,text="Include member self-weight",variable=self.vars["selfwt"]).pack(anchor="w",pady=3)
         ttk.Button(self.left,text="Analyze beam",command=self.run).pack(fill="x",pady=5); ttk.Button(self.left,text="Load example",command=self.example).pack(fill="x")
         self.result=ttk.Label(self.right,text="",justify="left",wraplength=750); self.result.pack(fill="x",pady=6)
+        ttk.Button(self.right,text="Export results to CSV",command=self.export_results).pack(anchor="e",pady=(0,5))
         self.canvas=tk.Canvas(self.right,bg=PAPER,highlightthickness=0); self.canvas.pack(fill="both",expand=True); self.canvas.bind("<Configure>",lambda e:self.run())
         self.run()
 
@@ -102,11 +104,23 @@ class App(tk.Tk):
             if self.vars['selfwt'].get(): dls.append((float(self.vars['weight'].get())/1000,0,span))
             if any(a<0 or a>span or b<0 or b>span or b<=a for q,a,b in dls) or any(a<0 or a>span for p,a in pts): raise ValueError("Load locations must lie within the span.")
             out=analyze(span,self.vars['support'].get(),pts,dls,E,I,S); out['points']=pts; out['distributed']=dls; stress=abs(out['maxM'][2]/S)
+            self.current_results=out
             allow=self.vars['allow'].get().strip(); lim=span*12/float(self.vars['limit'].get()); dy=abs(out['maxY'][3])
             self.result.config(text=f"Reactions: {out['left']:.3f} kip left; {out['right']:.3f} kip right   |   Max |M| {abs(out['maxM'][2])/12:.3f} kip-ft @ {out['maxM'][0]:.2f} ft   |   Max |fb| {stress:.3f} ksi   |   Max |δ| {dy:.3f} in\nBending: {'NOT CHECKED' if not allow else ('PASS' if stress<=float(allow) else 'FAIL')}    Deflection: {'PASS' if dy<=lim else 'FAIL'} (L/{self.vars['limit'].get()})\nEducational screening only. No shear-strength, buckling, bracing, bearing, connection, or code load-combination checks. Source: {self.vars['source'].get()}")
             self.draw(out,span)
         except Exception as e:
             self.result.config(text=f"Input error: {e}")
+
+    def export_results(self):
+        if not hasattr(self,"current_results"):
+            messagebox.showerror("Export results","Analyze a valid beam before exporting.",parent=self); return
+        path=filedialog.asksaveasfilename(defaultextension=".csv",filetypes=[("CSV file","*.csv")])
+        if not path: return
+        try:
+            with open(path,"w",newline="",encoding="utf-8-sig") as f:
+                writer=csv.writer(f); writer.writerow(["x (ft)","V (kip)","M (kip-ft)","Deflection (in)"])
+                writer.writerows((f"{x:.6f}",f"{v:.6f}",f"{m/12:.6f}",f"{y:.6f}") for x,v,m,y in self.current_results["samples"])
+        except OSError as exc: messagebox.showerror("Export results",str(exc),parent=self)
 
     def draw(self,o,span):
         c=self.canvas; c.delete('all'); w=max(c.winfo_width(),500); left=75; right=w-25; scale=(right-left)/span; y=45

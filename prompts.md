@@ -29,3 +29,8 @@
 - Asked: Add File > Save/Open for beam support, span, section, deflection limit, and loads; remove saving designs from spec out of scope.
 - Changed: Added Save/Open commands backed by JSON design files and moved design saving into the specification scope.
 - Worked: Yes. Python compilation and a JSON data round-trip check succeeded.
+
+## 2026-11-24
+- Asked: Add a button to export x, shear, moment, and deflection along the beam to an Excel-compatible CSV.
+- Changed: Added an Export results to CSV button and UTF-8 BOM CSV output with unit-labeled columns; updated the specification.
+- Worked: Yes. Python compilation and CSV header validation succeeded.
