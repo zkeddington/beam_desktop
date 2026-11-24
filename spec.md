@@ -25,6 +25,8 @@ screening tool, not a substitute for a complete code-based structural design.
   deflection limit, and applied loads.
 - Export sampled position, shear, moment, and deflection results to a CSV file
   suitable for opening in spreadsheet software.
+- Create a printable PDF calculation sheet with inputs at the top, followed by
+  the beam diagrams and preliminary screening checks.
 
 ## Inputs
 - Support condition and span (ft).

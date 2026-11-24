@@ -34,3 +34,8 @@
 - Asked: Add a button to export x, shear, moment, and deflection along the beam to an Excel-compatible CSV.
 - Changed: Added an Export results to CSV button and UTF-8 BOM CSV output with unit-labeled columns; updated the specification.
 - Worked: Yes. Python compilation and CSV header validation succeeded.
+
+## 2026-11-24
+- Asked: Add a calculation sheet button that saves inputs, diagrams, and checks as a hand-in-ready PDF.
+- Changed: Added a PDF export button, a printable calculation summary with inputs and check results, and sampled beam response values; documented PDF output in the specification.
+- Worked: Python compilation succeeded. Export is a one-page printable PDF using built-in fonts.

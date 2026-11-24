@@ -1,6 +1,7 @@
 """Tkinter beam analysis screening tool. Imperial units throughout."""
 import json
 import csv
+import textwrap
 import math
 from tkinter import filedialog
 import tkinter as tk
@@ -62,7 +63,9 @@ class App(tk.Tk):
         self.vars["selfwt"]=tk.BooleanVar(value=False); ttk.Checkbutton(self.left,text="Include member self-weight",variable=self.vars["selfwt"]).pack(anchor="w",pady=3)
         ttk.Button(self.left,text="Analyze beam",command=self.run).pack(fill="x",pady=5); ttk.Button(self.left,text="Load example",command=self.example).pack(fill="x")
         self.result=ttk.Label(self.right,text="",justify="left",wraplength=750); self.result.pack(fill="x",pady=6)
-        ttk.Button(self.right,text="Export results to CSV",command=self.export_results).pack(anchor="e",pady=(0,5))
+        exportbar=ttk.Frame(self.right); exportbar.pack(fill="x",pady=(0,5))
+        ttk.Button(exportbar,text="Export results to CSV",command=self.export_results).pack(side="right")
+        ttk.Button(exportbar,text="Calculation sheet (PDF)",command=self.export_pdf).pack(side="right",padx=6)
         self.canvas=tk.Canvas(self.right,bg=PAPER,highlightthickness=0); self.canvas.pack(fill="both",expand=True); self.canvas.bind("<Configure>",lambda e:self.run())
         self.run()
 
@@ -105,6 +108,7 @@ class App(tk.Tk):
             if any(a<0 or a>span or b<0 or b>span or b<=a for q,a,b in dls) or any(a<0 or a>span for p,a in pts): raise ValueError("Load locations must lie within the span.")
             out=analyze(span,self.vars['support'].get(),pts,dls,E,I,S); out['points']=pts; out['distributed']=dls; stress=abs(out['maxM'][2]/S)
             self.current_results=out
+            self.current_summary=(span,stress,allow if 'allow' in locals() else self.vars['allow'].get().strip(),lim if 'lim' in locals() else span*12/float(self.vars['limit'].get()),dy if 'dy' in locals() else abs(out['maxY'][3]))
             allow=self.vars['allow'].get().strip(); lim=span*12/float(self.vars['limit'].get()); dy=abs(out['maxY'][3])
             self.result.config(text=f"Reactions: {out['left']:.3f} kip left; {out['right']:.3f} kip right   |   Max |M| {abs(out['maxM'][2])/12:.3f} kip-ft @ {out['maxM'][0]:.2f} ft   |   Max |fb| {stress:.3f} ksi   |   Max |δ| {dy:.3f} in\nBending: {'NOT CHECKED' if not allow else ('PASS' if stress<=float(allow) else 'FAIL')}    Deflection: {'PASS' if dy<=lim else 'FAIL'} (L/{self.vars['limit'].get()})\nEducational screening only. No shear-strength, buckling, bracing, bearing, connection, or code load-combination checks. Source: {self.vars['source'].get()}")
             self.draw(out,span)
@@ -121,6 +125,44 @@ class App(tk.Tk):
                 writer=csv.writer(f); writer.writerow(["x (ft)","V (kip)","M (kip-ft)","Deflection (in)"])
                 writer.writerows((f"{x:.6f}",f"{v:.6f}",f"{m/12:.6f}",f"{y:.6f}") for x,v,m,y in self.current_results["samples"])
         except OSError as exc: messagebox.showerror("Export results",str(exc),parent=self)
+
+    def export_pdf(self):
+        if not hasattr(self,"current_results"):
+            messagebox.showerror("Calculation sheet","Analyze a valid beam before exporting.",parent=self); return
+        path=filedialog.asksaveasfilename(defaultextension=".pdf",filetypes=[("PDF file","*.pdf")])
+        if not path: return
+        try:
+            out=self.current_results; span,stress,allow,limit,deflection=self.current_summary
+            inputs=[f"Support: {self.vars['support'].get()}     Span: {span:g} ft     Section: {self.vars['section'].get()}",
+                    f"Material: {self.vars['material'].get()}     Deflection limit: L/{self.vars['limit'].get()}",
+                    f"Point loads (kip @ ft): {self.vars['points'].get() or 'None'}",
+                    f"Distributed loads (kip/ft @ start-end ft): {self.vars['udl'].get() or 'None'}",
+                    f"Member: d={self.vars['d'].get()} in, bf={self.vars['bf'].get()} in, E={self.vars['E'].get()} ksi, Ix={self.vars['Ix'].get()} in^4, Sx={self.vars['Sx'].get()} in^3",
+                    f"Property source: {self.vars['source'].get()}   Self-weight: {'included' if self.vars['selfwt'].get() else 'excluded'}"]
+            rows=["BEAM DESIGNER - PRELIMINARY CALCULATION SHEET", "Educational screening only; not a code-compliant design.", "INPUTS"]+inputs+[
+                "", "RESULTS AND CHECKS",f"Left reaction: {out['left']:.3f} kip    Right reaction: {out['right']:.3f} kip",
+                f"Maximum |M|: {abs(out['maxM'][2])/12:.3f} kip-ft at x={out['maxM'][0]:.3f} ft",
+                f"Maximum |fb|: {stress:.3f} ksi; bending: {'NOT CHECKED' if not allow else ('PASS' if stress<=float(allow) else 'FAIL')}",
+                f"Maximum |deflection|: {deflection:.3f} in; limit {limit:.3f} in (L/{self.vars['limit'].get()}): {'PASS' if deflection<=limit else 'FAIL'}",
+                "Shear strength, buckling, bracing, bearing, connections, and load combinations are not checked.", "", "RESPONSE DIAGRAM SAMPLES"]
+            for x,v,m,y in out['samples'][::25]: rows.append(f"x={x:6.2f} ft   V={v:9.3f} kip   M={m/12:9.3f} kip-ft   deflection={y:9.4f} in")
+            # Minimal valid one-page PDF using standard fonts; each line is text so it prints cleanly.
+            lines=[]
+            for row in rows:
+                lines.extend(textwrap.wrap(row,width=100) or [""])
+            commands=["BT", "/F1 9 Tf", "45 755 Td", "12 TL"]
+            for line in lines[:58]:
+                safe=line.replace("\\","\\\\").replace("(","\\(").replace(")","\\)").encode("ascii","replace").decode("ascii")
+                commands.append(f"({safe}) Tj T* ")
+            commands.append("ET"); stream="\n".join(commands).encode("ascii")
+            objs=[b"<< /Type /Catalog /Pages 2 0 R >>",b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",b"<< /Length %d >>\nstream\n"%len(stream)+stream+b"\nendstream"]
+            pdf=bytearray(b"%PDF-1.4\n"); offsets=[0]
+            for n,obj in enumerate(objs,1): offsets.append(len(pdf)); pdf.extend(f"{n} 0 obj\n".encode()); pdf.extend(obj); pdf.extend(b"\nendobj\n")
+            xref=len(pdf); pdf.extend(f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode())
+            for off in offsets[1:]: pdf.extend(f"{off:010d} 00000 n \n".encode())
+            pdf.extend(f"trailer\n<< /Size {len(objs)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode())
+            with open(path,"wb") as f: f.write(pdf)
+        except (OSError,ValueError) as exc: messagebox.showerror("Calculation sheet",str(exc),parent=self)
 
     def draw(self,o,span):
         c=self.canvas; c.delete('all'); w=max(c.winfo_width(),500); left=75; right=w-25; scale=(right-left)/span; y=45
